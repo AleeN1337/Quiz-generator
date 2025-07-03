@@ -22,6 +22,21 @@ mongoose
   .then(() => console.log("MongoDB connected"))
   .catch((err) => console.error(" MongoDB error:", err));
 
+function detectExportFormat(text) {
+  const t = text.toLowerCase();
+  if (t.includes("pdf")) return "pdf";
+  if (
+    t.includes("excel") ||
+    t.includes("csv") ||
+    t.includes("arkusz") ||
+    t.includes("tabela")
+  )
+    return "csv";
+  if (t.includes("json")) return "json";
+  if (t.includes("markdown") || t.includes(".md")) return "md";
+  return null;
+}
+
 // generowanie quizu przez DeepSeek
 app.post("/generate-quiz", async (req, res) => {
   const { sourceText, quizType = "open-ended" } = req.body;
@@ -81,7 +96,7 @@ ${sourceText}`;
     );
 
     const content = response.data.choices[0].message.content;
-    //console.log("Odpowiedź od modelu:\n", content);
+    console.log("Odpowiedź od modelu:\n", content);
 
     let parsed;
     try {
@@ -96,6 +111,48 @@ ${sourceText}`;
     const newQuiz = new Quiz({ sourceText, questions: parsed, quizType });
     await newQuiz.save();
 
+    // INTELIGENTNE EKSPORTOWANIE
+    const format = detectExportFormat(sourceText);
+    if (format === "pdf") {
+      const PDFDocument = require("pdfkit");
+      const doc = new PDFDocument();
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", "attachment; filename=quiz.pdf");
+      doc.pipe(res);
+
+      doc.fontSize(18).text("Quiz", { align: "center" }).moveDown();
+      parsed.forEach((q, i) => {
+        doc
+          .fontSize(14)
+          .text(`Pytanie ${i + 1}: ${q.question}`)
+          .moveDown(0.5);
+        if (q.options) q.options.forEach((opt) => doc.text(`- ${opt}`));
+        const answer = q.correctAnswer || q.answer || "brak odpowiedzi";
+        doc.text(`Odpowiedź: ${answer}`).moveDown(1);
+      });
+
+      doc.end();
+      return;
+    }
+
+    if (format === "csv") {
+      const { Parser } = require("json2csv");
+      const parser = new Parser({
+        fields: ["question", "options", "correctAnswer"],
+      });
+      const csv = parser.parse(
+        parsed.map((q) => ({
+          question: q.question,
+          options: q.options?.join(" | ") || "",
+          correctAnswer: q.correctAnswer || q.answer || "",
+        }))
+      );
+      res.setHeader("Content-Type", "text/csv");
+      res.setHeader("Content-Disposition", "attachment; filename=quiz.csv");
+      return res.send(csv);
+    }
+
+    // Domyślnie zwróć JSON do frontendowej prezentacji
     res.json({ message: "Quiz wygenerowany przez DeepSeek", quiz: newQuiz });
   } catch (error) {
     console.error("Błąd:", error?.response?.data || error.message);
@@ -116,7 +173,6 @@ app.get("/quizzes", async (req, res) => {
   }
 });
 
-//Start serwera
 app.listen(port, () => {
   console.log(` Serwer działa na porcie ${port}`);
 });
