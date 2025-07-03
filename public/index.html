@@ -3,22 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <title>Generator Quizów</title>
-    <style>
-      body {
-        font-family: sans-serif;
-        max-width: 800px;
-        margin: 40px auto;
-        padding: 20px;
-      }
-      .quiz-item {
-        margin-bottom: 30px;
-        padding: 10px;
-        border-bottom: 1px solid #ccc;
-      }
-      button {
-        margin-top: 10px;
-      }
-    </style>
+    <link rel="stylesheet" href="style.css" />
   </head>
   <body>
     <h1>Generator Quizów</h1>
@@ -75,7 +60,7 @@
         container.innerHTML = "";
 
         if (!data.quiz || !Array.isArray(data.quiz.questions)) {
-          container.innerHTML = `<p style="color:red">Nie udało się wygenerować quizu.</p>`;
+          container.innerHTML = `<p class="error">Nie udało się wygenerować quizu.</p>`;
           return;
         }
 
