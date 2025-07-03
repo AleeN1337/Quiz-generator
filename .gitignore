@@ -1,0 +1,15 @@
+# Ignoruj plik z kluczami i danymi środowiskowymi
+.env
+
+# Ignoruj katalogi i pliki systemowe / IDE
+node_modules/
+.vscode/
+.idea/
+
+# Ignoruj logi
+*.log
+npm-debug.log*
+
+# Ignoruj zbudowane pliki (jeśli używasz)
+dist/
+build/
