@@ -67,7 +67,7 @@
               q.question
             }<br>`;
 
-            if (q.options && Array.isArray(q.options)) {
+            if (Array.isArray(q.options) && q.options.length) {
               html += `<ul>${q.options
                 .map((opt) => `<li>${opt}</li>`)
                 .join("")}</ul>`;
@@ -81,7 +81,8 @@
               html += `<button onclick="document.getElementById('ans-${index}').style.display='block'">Pokaż odpowiedź</button>`;
               html += `<div id="ans-${index}" style="display:none; margin-top:5px;"><strong>Odpowiedź:</strong> ${correctOption}</div>`;
             } else {
-              const openAnswer = q.answer || "brak odpowiedzi";
+              const openAnswer =
+                q.answer || q.correctAnswer || "brak odpowiedzi";
 
               html += `<button onclick="document.getElementById('ans-${index}').style.display='block'">Pokaż odpowiedź</button>`;
               html += `<div id="ans-${index}" style="display:none; margin-top:5px;"><strong>Odpowiedź:</strong> ${openAnswer}</div>`;

@@ -81,7 +81,7 @@ ${sourceText}`;
     );
 
     const content = response.data.choices[0].message.content;
-    console.log("Odpowiedź od modelu:\n", content);
+    //console.log("Odpowiedź od modelu:\n", content);
 
     let parsed;
     try {
