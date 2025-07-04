@@ -138,22 +138,6 @@ async function createDocx(questions) {
     docContent.join("\n")
   );
 
-  const rels =
-    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n' +
-    '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n' +
-    '  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>\n' +
-    "</Relationships>";
-  fs.writeFileSync(path.join(tmpDir, "_rels", ".rels"), rels);
-
-  const types =
-    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n' +
-    '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">\n' +
-    '  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>\n' +
-    '  <Default Extension="xml" ContentType="application/xml"/>\n' +
-    '  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>\n' +
-    "</Types>";
-  fs.writeFileSync(path.join(tmpDir, "[Content_Types].xml"), types);
-
   const out = path.join(os.tmpdir(), `quiz-${Date.now()}.docx`);
   await new Promise((resolve, reject) => {
     exec(`cd ${tmpDir} && zip -r ${out} .`, (err) => {
