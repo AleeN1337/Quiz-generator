@@ -33,65 +33,81 @@
         const sourceText = document.getElementById("sourceText").value;
         const quizType = document.getElementById("quizType").value;
 
-        const response = await fetch("/generate-quiz", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ sourceText, quizType }),
-        });
+        try {
+          const response = await fetch("/generate-quiz", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ sourceText, quizType }),
+          });
 
-        const contentType = response.headers.get("Content-Type");
+          const contentType = response.headers.get("Content-Type");
 
-        if (
-          contentType.includes("application/pdf") ||
-          contentType.includes("text/csv")
-        ) {
-          const blob = await response.blob();
-          const url = window.URL.createObjectURL(blob);
-          const a = document.createElement("a");
-          a.href = url;
-          a.download = contentType.includes("pdf") ? "quiz.pdf" : "quiz.csv";
-          a.click();
-          window.URL.revokeObjectURL(url);
-          return;
-        }
-
-        const data = await response.json();
-        const container = document.getElementById("quizContainer");
-        container.innerHTML = "";
-
-        if (!data.quiz || !Array.isArray(data.quiz.questions)) {
-          container.innerHTML = `<p class="error">Nie udało się wygenerować quizu.</p>`;
-          return;
-        }
-
-        data.quiz.questions.forEach((q, index) => {
-          const div = document.createElement("div");
-          div.className = "quiz-item";
-
-          const questionHTML = `<strong>Pytanie ${index + 1}:</strong> ${
-            q.question
-          }<br>`;
-          let optionsHTML = "";
-
-          if (Array.isArray(q.options) && q.options.length) {
-            optionsHTML = `<ul>${q.options
-              .map((opt) => `<li>${opt}</li>`)
-              .join("")}</ul>`;
-            const correctOption =
-              q.options.find((opt) =>
-                opt.trim().startsWith((q.correctAnswer || "") + ".")
-              ) ||
-              q.correctAnswer ||
-              "";
-            optionsHTML += renderAnswer(index, correctOption);
-          } else {
-            const openAnswer = q.answer || q.correctAnswer || "brak odpowiedzi";
-            optionsHTML += renderAnswer(index, openAnswer);
+          if (response.status !== 200) {
+            const errorData = await response.json();
+            alert("Błąd generowania quizu: " + errorData.error);
+            return;
           }
 
-          div.innerHTML = questionHTML + optionsHTML;
-          container.appendChild(div);
-        });
+          //  Automatyczne pobranie
+          if (
+            contentType.includes("application/pdf") ||
+            contentType.includes("text/csv")
+          ) {
+            const blob = await response.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = contentType.includes("pdf") ? "quiz.pdf" : "quiz.csv";
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            return;
+          }
+
+          // Obsługa JSON
+          const data = await response.json();
+          const container = document.getElementById("quizContainer");
+          container.innerHTML = "";
+
+          if (!data.quiz || !Array.isArray(data.quiz.questions)) {
+            container.innerHTML = `<p class="error">Nie udało się wygenerować quizu.</p>`;
+            return;
+          }
+
+          data.quiz.questions.forEach((q, index) => {
+            const div = document.createElement("div");
+            div.className = "quiz-item";
+
+            const questionHTML = `<strong>Pytanie ${index + 1}:</strong> ${
+              q.question
+            }<br>`;
+            let optionsHTML = "";
+
+            if (Array.isArray(q.options) && q.options.length) {
+              optionsHTML = `<ul>${q.options
+                .map((opt) => `<li>${opt}</li>`)
+                .join("")}</ul>`;
+              const correctOption =
+                q.options.find((opt) =>
+                  opt.trim().startsWith((q.correctAnswer || "") + ".")
+                ) ||
+                q.correctAnswer ||
+                "";
+              optionsHTML += renderAnswer(index, correctOption);
+            } else {
+              const openAnswer =
+                q.answer || q.correctAnswer || "brak odpowiedzi";
+              optionsHTML += renderAnswer(index, openAnswer);
+            }
+
+            div.innerHTML = questionHTML + optionsHTML;
+            container.appendChild(div);
+          });
+        } catch (err) {
+          alert("Wystąpił błąd podczas generowania quizu.");
+          console.error(err);
+        }
       }
 
       function renderAnswer(index, answer) {
