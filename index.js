@@ -21,8 +21,8 @@ mongoose
     useNewUrlParser: true,
     useUnifiedTopology: true,
   })
-  .then(() => console.log("✅ MongoDB connected"))
-  .catch((err) => console.error("❌ MongoDB error:", err));
+  .then(() => console.log(" MongoDB connected"))
+  .catch((err) => console.error(" MongoDB error:", err));
 
 // LLM
 async function detectFormatWithLLM(sourceText) {
@@ -62,7 +62,7 @@ Odpowiedz tylko jednym z tych słów. Jeśli nie wiadomo – odpowiedz "none".
 
     const match = stringSimilarity.findBestMatch(raw, allowedFormats);
     if (match.bestMatch.rating > 0.5) {
-      console.log("✅ Rozpoznany format:", match.bestMatch.target);
+      console.log("Rozpoznany format:", match.bestMatch.target);
       return match.bestMatch.target;
     }
 
@@ -72,11 +72,23 @@ Odpowiedz tylko jednym z tych słów. Jeśli nie wiadomo – odpowiedz "none".
     return "none";
   }
 }
+async function parseFormat(input, sourceText) {
+  const allowedFormats = ["pdf", "csv", "json", "markdown", "docx", "html"];
+
+  if (input) {
+    const match = stringSimilarity.findBestMatch(
+      input.toLowerCase(),
+      allowedFormats
+    );
+    if (match.bestMatch.rating > 0.5) return match.bestMatch.target;
+  }
+
+  return await detectFormatWithLLM(sourceText);
+}
 
 // Generowanie quizu
 app.post("/generate-quiz", async (req, res) => {
-  const { sourceText, quizType = "open-ended" } = req.body;
-
+  const { sourceText, quizType = "open-ended", outputFormat } = req.body;
   let prompt;
   if (quizType === "multiple-choice") {
     prompt = `Na podstawie poniższego tekstu stwórz dokładnie 5 pytań quizowych wielokrotnego wyboru.
@@ -144,7 +156,7 @@ ${sourceText}`;
     const newQuiz = new Quiz({ sourceText, questions: parsed, quizType });
     await newQuiz.save();
 
-    const format = await detectFormatWithLLM(sourceText);
+    const format = await parseFormat(outputFormat, sourceText);
 
     // PDF
     if (format === "pdf") {

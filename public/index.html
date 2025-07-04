@@ -21,23 +21,25 @@
       <option value="open-ended">Pytania otwarte</option>
       <option value="multiple-choice">Wielokrotny wybór</option>
     </select>
-
+    <label for="outputFormat">Format pliku:</label>
+    <input id="outputFormat" placeholder="pdf, csv, json..." />
     <button onclick="generateQuiz()">Generuj quiz</button>
 
     <hr />
-
+    <div id="downloadContainer"></div>
     <div id="quizContainer"></div>
 
     <script>
       async function generateQuiz() {
         const sourceText = document.getElementById("sourceText").value;
         const quizType = document.getElementById("quizType").value;
+        const outputFormat = document.getElementById("outputFormat").value;
 
         try {
           const response = await fetch("/generate-quiz", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ sourceText, quizType }),
+            body: JSON.stringify({ sourceText, quizType, outputFormat }),
           });
 
           const contentType = response.headers.get("Content-Type");
@@ -48,20 +50,23 @@
             return;
           }
 
-          //  Automatyczne pobranie
+          const downloadContainer =
+            document.getElementById("downloadContainer");
+          downloadContainer.innerHTML = "";
           if (
             contentType.includes("application/pdf") ||
             contentType.includes("text/csv")
           ) {
             const blob = await response.blob();
             const url = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = contentType.includes("pdf") ? "quiz.pdf" : "quiz.csv";
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = contentType.includes("pdf")
+              ? "quiz.pdf"
+              : "quiz.csv";
+            link.textContent = "Pobierz quiz";
+            link.className = "download-btn";
+            downloadContainer.appendChild(link);
             return;
           }
 
