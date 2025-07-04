@@ -24,71 +24,9 @@ mongoose
   .then(() => console.log(" MongoDB connected"))
   .catch((err) => console.error(" MongoDB error:", err));
 
-// LLM
-async function detectFormatWithLLM(sourceText) {
-  const prompt = `
-Użytkownik napisał:
-
-${sourceText}
-
-Zinterpretuj, w jakim formacie chce otrzymać wynik quizu. Rozpoznaj także literówki, synonimy i skróty.
-
-Dopuszczalne odpowiedzi: pdf, csv, json, markdown, docx, html.
-
-Odpowiedz tylko jednym z tych słów. Jeśli nie wiadomo – odpowiedz "none".
-`.trim();
-
-  const allowedFormats = ["pdf", "csv", "json", "markdown", "docx", "html"];
-
-  try {
-    const response = await axios.post(
-      "https://openrouter.ai/api/v1/chat/completions",
-      {
-        model: "mistralai/mistral-7b-instruct",
-        messages: [{ role: "user", content: prompt }],
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-          "Content-Type": "application/json",
-          "HTTP-Referer": "http://localhost:3000",
-          "X-Title": "Quiz Generator",
-        },
-      }
-    );
-
-    const raw = response.data.choices[0].message.content.trim().toLowerCase();
-    console.log("Raw odpowiedź modelu:", raw);
-
-    const match = stringSimilarity.findBestMatch(raw, allowedFormats);
-    if (match.bestMatch.rating > 0.5) {
-      console.log("Rozpoznany format:", match.bestMatch.target);
-      return match.bestMatch.target;
-    }
-
-    return "none";
-  } catch (err) {
-    console.error("Błąd LLM:", err?.message);
-    return "none";
-  }
-}
-async function parseFormat(input, sourceText) {
-  const allowedFormats = ["pdf", "csv", "json", "markdown", "docx", "html"];
-
-  if (input) {
-    const match = stringSimilarity.findBestMatch(
-      input.toLowerCase(),
-      allowedFormats
-    );
-    if (match.bestMatch.rating > 0.5) return match.bestMatch.target;
-  }
-
-  return await detectFormatWithLLM(sourceText);
-}
-
 // Generowanie quizu
 app.post("/generate-quiz", async (req, res) => {
-  const { sourceText, quizType = "open-ended", outputFormat } = req.body;
+  const { sourceText, quizType = "open-ended" } = req.body;
   let prompt;
   if (quizType === "multiple-choice") {
     prompt = `Na podstawie poniższego tekstu stwórz dokładnie 5 pytań quizowych wielokrotnego wyboru.
@@ -156,9 +94,27 @@ ${sourceText}`;
     const newQuiz = new Quiz({ sourceText, questions: parsed, quizType });
     await newQuiz.save();
 
-    const format = await parseFormat(outputFormat, sourceText);
+    res.json({ message: "Quiz wygenerowany", quiz: newQuiz });
+  } catch (error) {
+    console.error(
+      " Błąd generowania quizu:",
+      error?.response?.data || error.message
+    );
+    res.status(500).json({ error: "Błąd po stronie serwera" });
+  }
+});
 
-    // PDF
+// Pobieranie
+app.get("/download/:id", async (req, res) => {
+  const { id } = req.params;
+  const format = req.query.format;
+
+  try {
+    const quiz = await Quiz.findById(id);
+    if (!quiz) return res.status(404).json({ error: "Quiz nie znaleziony" });
+
+    const parsed = quiz.questions;
+
     if (format === "pdf") {
       const PDFDocument = require("pdfkit");
       const doc = new PDFDocument();
@@ -188,7 +144,6 @@ ${sourceText}`;
       return;
     }
 
-    // CSV
     if (format === "csv") {
       const { Parser } = require("json2csv");
       const parser = new Parser({
@@ -206,14 +161,10 @@ ${sourceText}`;
       return res.send(csv);
     }
 
-    // Domyślnie JSON
-    res.json({ message: "Quiz wygenerowany", quiz: newQuiz });
-  } catch (error) {
-    console.error(
-      " Błąd generowania quizu:",
-      error?.response?.data || error.message
-    );
-    res.status(500).json({ error: "Błąd po stronie serwera" });
+    res.status(400).json({ error: "Nieobsługiwany format" });
+  } catch (err) {
+    console.error("Błąd pobierania quizu:", err.message);
+    res.status(500).json({ error: "Błąd serwera" });
   }
 });
 
