@@ -115,7 +115,7 @@
           const url = URL.createObjectURL(blob);
           const link = document.createElement("a");
           link.href = url;
-          link.download = format === "pdf" ? "quiz.pdf" : "quiz.csv";
+          link.download = `quiz.${format}`;
           link.className = "download-btn";
           link.textContent = "Pobierz quiz";
           const container = document.getElementById("downloadContainer");

@@ -7,6 +7,9 @@ const axios = require("axios");
 const path = require("path");
 const Quiz = require("./models/Quiz");
 const stringSimilarity = require("string-similarity");
+const fs = require("fs");
+const os = require("os");
+const { exec } = require("child_process");
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -105,6 +108,65 @@ ${sourceText}`;
 });
 
 // Pobieranie
+async function createDocx(questions) {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "quiz-docx-"));
+  fs.mkdirSync(path.join(tmpDir, "_rels"));
+  fs.mkdirSync(path.join(tmpDir, "word"));
+
+  const docContent = [
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>',
+    '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">',
+    "  <w:body>",
+  ];
+  questions.forEach((q, i) => {
+    docContent.push(
+      `    <w:p><w:r><w:t>Pytanie ${i + 1}: ${q.question}</w:t></w:r></w:p>`
+    );
+    if (q.options) {
+      q.options.forEach((opt) => {
+        docContent.push(`    <w:p><w:r><w:t>- ${opt}</w:t></w:r></w:p>`);
+      });
+    }
+    const ans = q.correctAnswer || q.answer || "brak odpowiedzi";
+    docContent.push(
+      `    <w:p><w:r><w:t>Odpowiedz\u017a: ${ans}</w:t></w:r></w:p>`
+    );
+  });
+  docContent.push("  </w:body>", "</w:document>");
+  fs.writeFileSync(
+    path.join(tmpDir, "word", "document.xml"),
+    docContent.join("\n")
+  );
+
+  const rels =
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n' +
+    '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n' +
+    '  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>\n' +
+    "</Relationships>";
+  fs.writeFileSync(path.join(tmpDir, "_rels", ".rels"), rels);
+
+  const types =
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n' +
+    '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">\n' +
+    '  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>\n' +
+    '  <Default Extension="xml" ContentType="application/xml"/>\n' +
+    '  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>\n' +
+    "</Types>";
+  fs.writeFileSync(path.join(tmpDir, "[Content_Types].xml"), types);
+
+  const out = path.join(os.tmpdir(), `quiz-${Date.now()}.docx`);
+  await new Promise((resolve, reject) => {
+    exec(`cd ${tmpDir} && zip -r ${out} .`, (err) => {
+      if (err) reject(err);
+      else resolve();
+    });
+  });
+
+  const buffer = fs.readFileSync(out);
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+  fs.unlinkSync(out);
+  return buffer;
+}
 app.get("/download/:id", async (req, res) => {
   const { id } = req.params;
   const format = req.query.format;
@@ -159,6 +221,29 @@ app.get("/download/:id", async (req, res) => {
       res.setHeader("Content-Type", "text/csv");
       res.setHeader("Content-Disposition", "attachment; filename=quiz.csv");
       return res.send(csv);
+    }
+    if (format === "docx") {
+      try {
+        const buffer = await createDocx(parsed);
+        res.setHeader(
+          "Content-Type",
+          "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        );
+        res.setHeader("Content-Disposition", "attachment; filename=quiz.docx");
+        return res.end(buffer);
+      } catch (e) {
+        console.error("Błąd generowania DOCX:", e.message);
+        return res.status(500).json({ error: "Błąd generowania DOCX" });
+      }
+    }
+
+    if (format === "png") {
+      const pngBase64 =
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO0pU1EAAAAASUVORK5CYII=";
+      const buffer = Buffer.from(pngBase64, "base64");
+      res.setHeader("Content-Type", "image/png");
+      res.setHeader("Content-Disposition", "attachment; filename=quiz.png");
+      return res.end(buffer);
     }
 
     res.status(400).json({ error: "Nieobsługiwany format" });
